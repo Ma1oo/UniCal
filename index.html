@@ -316,9 +316,9 @@ function seed(){
     session:null, theme:'auto',
     users:{
       s1:{id:'s1',role:'student',name:'みい',univ:'サンプル大学',dept:'社会情報学科 2年',loginId:'1',password:'1',publicId:'UC-1024',zemi:'t3'},
-      t1:{id:'t1',role:'teacher',name:'田中',univ:'サンプル大学',dept:'社会情報学科',loginId:'2',password:'2'},
-      t2:{id:'t2',role:'teacher',name:'佐藤',univ:'サンプル大学',dept:'データサイエンス学科',loginId:'3',password:'3'},
-      t3:{id:'t3',role:'teacher',name:'山本',univ:'サンプル大学',dept:'社会情報学科 ゼミ担当',loginId:'4',password:'4'},
+      t1:{id:'t1',role:'teacher',name:'田中',univ:'サンプル大学',dept:'社会情報学科',loginId:'2',password:'2',zemiName:'田中ゼミ'},
+      t2:{id:'t2',role:'teacher',name:'佐藤',univ:'サンプル大学',dept:'データサイエンス学科',loginId:'3',password:'3',zemiName:'佐藤ゼミ'},
+      t3:{id:'t3',role:'teacher',name:'山本',univ:'サンプル大学',dept:'社会情報学科 ゼミ担当',loginId:'4',password:'4',zemiName:'山本ゼミ'},
       s2:{id:'s2',role:'student',name:'はな',univ:'サンプル大学',dept:'社会情報学科 2年',loginId:'5',password:'5',publicId:'UC-2048',zemi:'t3'},
       s3:{id:'s3',role:'student',name:'けんと',univ:'サンプル大学',dept:'データサイエンス学科 2年',loginId:'6',password:'6',publicId:'UC-3172',zemi:'t2'},
       s4:{id:'s4',role:'student',name:'そら',univ:'サンプル大学',dept:'社会情報学科 1年',loginId:'7',password:'7',publicId:'UC-4096',zemi:'t1'}
@@ -364,7 +364,11 @@ function seed(){
 function load(){try{const s=localStorage.getItem(KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(D));}catch(e){}}
 let D=load()||seed();
-const U={auth:'login',calSel:TS,menuView:null,fq:'',fopen:null,tab:'today',calY:TODAY.getFullYear(),calM:TODAY.getMonth(),calFilter:'all',selDate:null,chat:null,modal:null};
+Object.values(D.users).forEach(u=>{if(u.role==='teacher'&&u.zemiName===undefined)u.zemiName={t1:'田中ゼミ',t2:'佐藤ゼミ',t3:'山本ゼミ'}[u.id]||null;});
+const TEACHER_CODE='UNICAL-T2026';
+const zemiLabel=tid=>{const t=D.users[tid];return t?(t.zemiName||t.name+'ゼミ'):'';};
+const zemiTeachers=()=>Object.values(D.users).filter(x=>x.role==='teacher'&&x.zemiName);
+const U={auth:'login',signRole:'student',calSel:TS,menuView:null,fq:'',fopen:null,tab:'today',calY:TODAY.getFullYear(),calM:TODAY.getMonth(),calFilter:'all',selDate:null,chat:null,modal:null};
 
 const me=()=>D.users[D.session];
 const isT=()=>me().role==='teacher';
@@ -423,23 +427,32 @@ function scheduleList(ds){
 function renderLogin(){
   const head='<div class="login"><div class="mark">U</div><h1>UniCal</h1><p class="copy">授業も、課題も、自分の予定も。ひとつのカレンダーで。</p>';
   if(U.auth==='signup'){
-    return head+'<div class="panel auth"><h2>新規会員登録（学生）</h2>'+
-      '<label class="f">名前<input id="s-name" autocomplete="name" placeholder="例：みい"></label>'+
+    const T=U.signRole==='teacher';
+    return head+'<div class="panel auth"><h2>新規会員登録</h2>'+
+      '<div class="seg" role="group" aria-label="登録する立場" style="margin-bottom:14px"><button data-act="sign-role" data-v="student" aria-pressed="'+!T+'">学生</button><button data-act="sign-role" data-v="teacher" aria-pressed="'+T+'">先生</button></div>'+
+      '<label class="f">名前<input id="s-name" autocomplete="name" placeholder="'+(T?'例：鈴木':'例：みい')+'"></label>'+
       '<label class="f">大学名<input id="s-univ" placeholder="例：サンプル大学"></label>'+
-      '<label class="f">学部・学科・学年<input id="s-dept" placeholder="例：社会情報学科 1年"></label>'+
-      '<label class="f">ゼミの先生（今日の気分を共有する相手）<select id="s-zemi">'+opt('','あとで設定する')+Object.values(D.users).filter(x=>x.role==='teacher').map(t=>opt(t.id,t.name+'先生')).join('')+'</select></label>'+
+      (T?
+        '<label class="f">所属（学部・学科）<input id="s-dept" placeholder="例：社会情報学科"></label>'+
+        '<label class="f">ゼミ<select id="s-zhas">'+opt('yes','ゼミを担当する')+opt('no','ゼミは担当しない')+'</select></label>'+
+        '<label class="f">ゼミ名（担当する場合）<input id="s-zname" placeholder="例：鈴木ゼミ　空欄なら「名前＋ゼミ」"></label>'+
+        '<label class="f">先生用の登録コード<input id="s-code" autocapitalize="characters" placeholder="大学から配られたコード"></label>'
+      :
+        '<label class="f">学部・学科・学年<input id="s-dept" placeholder="例：社会情報学科 1年"></label>'+
+        '<label class="f">所属するゼミ（今日の気分を共有する先生）<select id="s-zemi">'+opt('','あとで設定する')+zemiTeachers().map(t=>opt(t.id,zemiLabel(t.id)+'（'+t.name+'先生）')).join('')+'</select></label>'
+      )+
       '<label class="f">ログインID<input id="s-id" autocomplete="username" autocapitalize="off"></label>'+
       '<div class="two"><label class="f">パスワード<input id="s-pw" type="password" autocomplete="new-password"></label><label class="f">パスワード（確認）<input id="s-pw2" type="password" autocomplete="new-password"></label></div>'+
-      '<p class="err" id="a-err" role="alert"></p><button class="btn primary wide" data-act="do-signup">登録してはじめる</button></div>'+
+      '<p class="err" id="a-err" role="alert"></p><button class="btn primary wide" data-act="do-signup">'+(T?'先生として登録する':'登録してはじめる')+'</button></div>'+
       '<p class="center">アカウントをお持ちの方は <button class="link" data-act="to-login">ログイン</button></p>'+
-      '<p class="note" style="margin-top:14px">新規会員登録で作れるのは学生アカウントだけです。先生のアカウントは大学が発行します。</p></div>';
+      '<p class="note" style="margin-top:14px">'+(T?'先生の登録には、大学から配られる登録コードが必要です。学生が先生として登録するのを防ぐためです。':'学生か先生かは、登録後に変更できません。')+'</p></div>';
   }
   return head+'<div class="panel auth"><h2>ログイン</h2>'+
     '<label class="f">ログインID<input id="l-id" autocomplete="username" autocapitalize="off"></label>'+
     '<label class="f">パスワード<input id="l-pw" type="password" autocomplete="current-password"></label>'+
     '<p class="err" id="a-err" role="alert"></p><button class="btn primary wide" data-act="do-login">ログイン</button></div>'+
     '<p class="center">はじめての方は <button class="link" data-act="to-signup">新規会員登録</button></p>'+
-    '<div class="demo">デモ用アカウント<br>学生 みい：ID 1／パスワード 1<br>先生 田中：ID 2／パスワード 2<br>友達機能の確認用：はな 5、けんと 6、そら 7（パスワードはIDと同じ）<br>気分アラートの確認用：山本先生（ゼミ）ID 4</div>'+
+    '<div class="demo">デモ用アカウント<br>学生 みい：ID 1／パスワード 1<br>先生 田中：ID 2／パスワード 2<br>友達機能の確認用：はな 5、けんと 6、そら 7（パスワードはIDと同じ）<br>気分アラートの確認用：山本先生（ゼミ）ID 4<br>先生の新規登録コード（デモ用）：UNICAL-T2026</div>'+
     '<p class="note" style="margin-top:14px">学生か先生かはアカウントごとに決まっています。入力した内容はこのブラウザに保存されます。</p></div>';
 }
 const norm=s=>String(s||'').normalize('NFKC').trim();
@@ -459,6 +472,14 @@ function doSignup(){
   if(Object.values(D.users).some(x=>x.loginId===id))return authErr('このログインIDはすでに使われています。');
   if(!pw)return authErr('パスワードを入力してください。');
   if(pw!==pw2)return authErr('確認用のパスワードが一致しません。');
+  if(U.signRole==='teacher'){
+    if(norm(val('s-code')).toUpperCase()!==TEACHER_CODE)return authErr('先生用の登録コードが正しくありません。大学から配られたコードを入力してください。');
+    const zemiName=val('s-zhas')==='yes'?(val('s-zname')||name+'ゼミ'):null;
+    const t={id:nid('t'),role:'teacher',name,univ,dept,loginId:id,password:pw,zemiName};
+    D.users[t.id]=t;D.tt[t.id]=[];D.todos[t.id]=[];
+    D.session=t.id;U.auth='login';U.signRole='student';U.tab='today';U.selDate=null;U.chat=null;save();render();window.scrollTo(0,0);toast('登録しました。ようこそ、'+name+'先生');
+    return;
+  }
   const u={id:nid('s'),role:'student',name,univ,dept,loginId:id,password:pw,publicId:genPid(),zemi:val('s-zemi')||null};
   D.users[u.id]=u;D.tt[u.id]=[];D.todos[u.id]=[];
   D.session=u.id;U.auth='login';U.tab='today';U.selDate=null;U.chat=null;save();render();window.scrollTo(0,0);toast('登録しました。ようこそ、'+name+'さん');
@@ -618,7 +639,7 @@ function talkRow(s){
 }
 function groupRow(tid){
   const k='zemi:'+tid,th=D.threads[k]||[],last=th[th.length-1],n=zemiStudents(tid).length+1;
-  return '<button class="menu-btn" data-act="chat-open" data-u="'+k+'"><span class="avatar">ゼ</span><span class="main"><span class="title">'+esc(D.users[tid].name)+'ゼミ（全員・'+n+'人）</span><br><span class="sub">'+(last?esc(lastLine(last,true)):'ゼミのグループトーク')+'</span></span></button>';
+  return '<button class="menu-btn" data-act="chat-open" data-u="'+k+'"><span class="avatar">ゼ</span><span class="main"><span class="title">'+esc(zemiLabel(tid))+'（全員・'+n+'人）</span><br><span class="sub">'+(last?esc(lastLine(last,true)):'ゼミのグループトーク')+'</span></span></button>';
 }
 function renderStudentZemi(){
   const z=me().zemi&&D.users[me().zemi];
@@ -633,7 +654,7 @@ function renderGroupChat(tid){
   let h='<div class="chat-top"><button class="arrow" data-act="chat-back" aria-label="戻る">‹</button>';
   if(!allowed)return h+'</div><div class="empty">このトークには参加していません。</div>';
   const k='zemi:'+tid,th=D.threads[k]||[],mem=zemiStudents(tid);
-  h+='<span class="avatar">ゼ</span><div class="main"><div class="title">'+esc(t.name)+'ゼミ</div><div class="sub">'+esc(t.name)+'先生、'+mem.map(s=>esc(s.name)).join('、')+'（'+(mem.length+1)+'人）</div></div></div>';
+  h+='<span class="avatar">ゼ</span><div class="main"><div class="title">'+esc(zemiLabel(tid))+'</div><div class="sub">'+esc(t.name)+'先生、'+mem.map(s=>esc(s.name)).join('、')+'（'+(mem.length+1)+'人）</div></div></div>';
   h+='<div class="chat" aria-live="polite">'+(th.length?th.map(m=>{const mine=m.from===D.session,u=D.users[m.from];return (mine?'':'<div class="who-l">'+esc(u?u.name+(u.role==='teacher'?'先生':''):'退会したユーザー')+'</div>')+'<div class="msg'+(mine?' me':'')+(!mine&&u&&u.role==='teacher'?' tch':'')+'">'+esc(m.text)+'<span class="at">'+esc(m.at)+'</span></div>';}).join(''):'<div class="empty" style="text-align:center">ゼミのみんなに最初のメッセージを送ってみましょう。</div>')+'</div>';
   h+='<div class="chat-input"><input id="chat-input" placeholder="ゼミのみんなに送る" aria-label="メッセージを入力"><button class="btn primary" data-act="chat-send">送信</button></div>';
   return h;
@@ -732,7 +753,7 @@ function renderModal(){
   else if(m.type==='slot'){const s=D.slots.find(x=>x.id===m.id);del=!!s;title=s?'空き時間を編集':'空き時間を追加';body='<label class="f">曜日<select id="m-a">'+[1,2,3,4,5].map(d=>opt(d,WD[d]+'曜日',s&&s.day===d)).join('')+'</select></label><div class="two"><label class="f">開始<input type="time" id="m-b" value="'+(s?s.start:'13:00')+'"></label><label class="f">終了<input type="time" id="m-c" value="'+(s?s.end:'14:00')+'"></label></div><label class="f">場所<input id="m-d" value="'+esc(s?s.place:'')+'" placeholder="例：A棟 研究室／オンライン"></label>';}
   else if(m.type==='book'){const s=D.slots.find(x=>x.id===m.slotId);title='面談を申し込む';body='<div class="info"><b>'+esc(tName(s.teacherId))+'</b><br>'+md(m.date)+' '+s.start+'〜'+s.end+'<br><span class="sub">'+esc(s.place)+'</span></div><label class="f">相談したいこと（任意）<textarea id="m-a" placeholder="例：レポートの構成について"></textarea></label>';ok='申し込む';}
   else if(m.type==='resched'){const b=D.bookings.find(x=>x.id===m.id);const sl=D.slots.filter(s=>s.teacherId===D.session);const opts=[];sl.forEach(s=>nextDates(s.day,3).forEach(d=>{if(!(s.id===b.slotId&&d===b.date)&&!taken(s.id,d))opts.push([s.id+'|'+d,md(d)+' '+s.start+'〜'+s.end+'（'+s.place+'）',d+s.start]);}));opts.sort((a,b)=>a[2].localeCompare(b[2]));title='日時を変更';body='<div class="info">'+esc(sName(b.studentId))+'<br>現在：'+bText(b)+'</div>'+(opts.length?'<label class="f">新しい日時<select id="m-a">'+opts.map(o=>opt(o[0],o[1])).join('')+'</select></label>':'<p class="sub">選べる空き時間がありません。先に空き時間を追加してください。</p>');ok='変更して確定';}
-  else if(m.type==='profile'){const u=me();title='プロフィール';body='<label class="f">名前<input id="m-a" value="'+esc(u.name)+'"></label><label class="f">大学名<input id="m-b" value="'+esc(u.univ)+'"></label><label class="f">'+(isT()?'所属':'学部・学科・学年')+'<input id="m-c" value="'+esc(u.dept)+'"></label>'+(isT()?'':'<label class="f">ゼミの先生（今日の気分を共有する相手）<select id="m-z">'+opt('','設定しない（共有しない）',!u.zemi)+Object.values(D.users).filter(x=>x.role==='teacher').map(t=>opt(t.id,t.name+'先生',u.zemi===t.id)).join('')+'</select></label>')+'<div class="info">立場：'+(isT()?'先生':'学生')+'　ログインID：'+esc(u.loginId||'')+'<br><span class="sub">立場はアカウントごとに決まっていて、変更できません。</span></div>';}
+  else if(m.type==='profile'){const u=me();title='プロフィール';body='<label class="f">名前<input id="m-a" value="'+esc(u.name)+'"></label><label class="f">大学名<input id="m-b" value="'+esc(u.univ)+'"></label><label class="f">'+(isT()?'所属':'学部・学科・学年')+'<input id="m-c" value="'+esc(u.dept)+'"></label>'+(isT()?'<label class="f">担当ゼミ名（担当しない場合は空欄）<input id="m-zn" value="'+esc(u.zemiName||'')+'" placeholder="例：山本ゼミ"></label>':'<label class="f">所属するゼミ（今日の気分を共有する先生）<select id="m-z">'+opt('','設定しない（共有しない）',!u.zemi)+zemiTeachers().map(t=>opt(t.id,zemiLabel(t.id)+'（'+t.name+'先生）',u.zemi===t.id)).join('')+'</select></label>')+'<div class="info">立場：'+(isT()?'先生':'学生')+'　ログインID：'+esc(u.loginId||'')+'<br><span class="sub">立場はアカウントごとに決まっていて、変更できません。</span></div>';}
   else if(m.type==='reset'){title='サンプルデータに戻しますか';body='<p class="sub" style="margin:0 0 8px">追加した予定や出欠の記録はすべて消えます。</p>';ok='戻す';}
   r.innerHTML='<div class="overlay"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="m-title"><h3 id="m-title">'+title+'</h3>'+body+'<div class="actions">'+(del?'<button class="btn danger" data-act="modal-del">削除する</button>':'')+'<span class="spacer"></span><button class="btn" data-act="modal-close">キャンセル</button><button class="btn primary" data-act="modal-save">'+ok+'</button></div><p class="err" id="m-err" role="alert"></p></div></div>';
   const f=r.querySelector('.sheet input,.sheet select,.sheet textarea');if(f)f.focus();
@@ -749,7 +770,7 @@ function modalSave(){
   else if(m.type==='slot'){const day=Number(val('m-a')),st=val('m-b'),en=val('m-c'),pl=val('m-d');if(!st||!en)return err('開始と終了の時刻を入力してください。');if(st>=en)return err('終了は開始より後の時刻にしてください。');if(!pl)return err('場所を入力してください。');let s=D.slots.find(x=>x.id===m.id);if(s&&s.teacherId!==D.session)return err('この空き時間は編集できません。');if(!s){s={id:nid('sl'),teacherId:D.session};D.slots.push(s);}Object.assign(s,{day,start:st,end:en,place:pl});toast('空き時間を保存しました');}
   else if(m.type==='book'){const s=D.slots.find(x=>x.id===m.slotId);if(taken(s.id,m.date))return err('この日時はすでに予約されています。');const note=val('m-a');const b={id:nid('b'),teacherId:s.teacherId,studentId:D.session,slotId:s.id,date:m.date,start:s.start,end:s.end,place:s.place,note,status:'pending',changed:false};D.bookings.push(b);pushMsg(s.teacherId,D.session,D.session,'面談を申し込みました：'+bText(b)+(note?'\n'+note:''));toast('予約を申し込みました');}
   else if(m.type==='resched'){const v=val('m-a');if(!v)return closeModal();const p=v.split('|'),s=D.slots.find(x=>x.id===p[0]),b=D.bookings.find(x=>x.id===m.id);Object.assign(b,{slotId:s.id,date:p[1],start:s.start,end:s.end,place:s.place,status:'approved',changed:true});pushMsg(b.teacherId,b.studentId,D.session,'日時を変更して確定しました：'+bText(b)+'（'+b.place+'）');toast('日時を変更して確定しました');}
-  else if(m.type==='profile'){const n=val('m-a');if(!n)return err('名前を入力してください。');Object.assign(me(),{name:n,univ:val('m-b'),dept:val('m-c')});if(!isT())me().zemi=val('m-z')||null;toast('プロフィールを保存しました');}
+  else if(m.type==='profile'){const n=val('m-a');if(!n)return err('名前を入力してください。');Object.assign(me(),{name:n,univ:val('m-b'),dept:val('m-c')});if(!isT())me().zemi=val('m-z')||null;else me().zemiName=val('m-zn')||null;toast('プロフィールを保存しました');}
   else if(m.type==='reset'){const th=D.theme,sess=D.session;D=seed();D.theme=th;if(D.users[sess])D.session=sess;U.tab='today';U.selDate=null;U.chat=null;toast('サンプルデータに戻しました');}
   U.modal=null;save();render();
 }
@@ -782,6 +803,7 @@ document.addEventListener('click',e=>{
     case 'f-copy':{const id=me().publicId;try{navigator.clipboard.writeText(id).then(()=>toast('IDをコピーしました'),()=>toast('コピーできませんでした。'+id+' を手で伝えてください'));}catch(e){toast('コピーできませんでした。'+id+' を手で伝えてください');}break;}
     case 'mood-ack':D.moodAck=D.moodAck||{};D.moodAck[D.session+'|'+ds.u]=TS;save();render();toast('確認済みにしました');break;
     case 'do-login':doLogin();break;
+    case 'sign-role':U.signRole=ds.v;render();break;
     case 'do-signup':doSignup();break;
     case 'to-signup':U.auth='signup';render();window.scrollTo(0,0);break;
     case 'to-login':U.auth='login';render();window.scrollTo(0,0);break;
